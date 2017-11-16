@@ -36,4 +36,8 @@
          the sensor embedded in the power key and listening all the time
          causes a poor experience. -->
     <bool name="config_fingerprintWakeAndUnlock">true</bool>
+	
+	<string name="quick_settings_tiles_extra" translatable="false">
+        reboot
+    </string>
 </resources>
