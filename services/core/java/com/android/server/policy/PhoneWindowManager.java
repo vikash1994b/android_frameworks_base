@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2006 The Android Open Source Project
+ Copyright (C) 2019 The MoKee Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -672,6 +673,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     boolean mHavePendingMediaKeyRepeatWithWakeLock;
 
     private int mCurrentUserId;
+	
+	private boolean mThreeFingerGestureEnabled = false;
+    private SwipeToScreenshotListener mSwipeToScreenshot;
 
     // Maps global key codes to the components that will handle them.
     private GlobalKeyManager mGlobalKeyManager;
@@ -960,6 +964,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.VOLUME_ANSWER_CALL), false, this,
+                    UserHandle.USER_ALL);
+			resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                    LineageSettings.System.SWIPE_TO_SCREENSHOT), false, this,
                     UserHandle.USER_ALL);
 
             updateSettings();
@@ -2059,6 +2066,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mBurnInProtectionHelper = new BurnInProtectionHelper(
                     context, minHorizontal, maxHorizontal, minVertical, maxVertical, maxRadius);
         }
+		
+		mSwipeToScreenshot = new SwipeToScreenshotListener(
+                context, new SwipeToScreenshotListener.Callbacks() {
+            @Override
+            public void onSwipeThreeFinger() {
+                mHandler.post(mScreenshotRunnable);
+            }
+        });
 
         mHandler = new PolicyHandler();
         mWakeGestureListener = new MyWakeGestureListener(mContext, mHandler);
@@ -2373,6 +2388,17 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mShortPressOnWindowBehavior = SHORT_PRESS_WINDOW_PICTURE_IN_PICTURE;
         }
     }
+	
+	private void enableSwipeThreeFingerGesture(boolean enable) {
+        if (enable != mThreeFingerGestureEnabled) {
+            mThreeFingerGestureEnabled = enable;
+            if (enable) {
+                mWindowManagerFuncs.registerPointerEventListener(mSwipeToScreenshot, DEFAULT_DISPLAY);
+            } else {
+                mWindowManagerFuncs.unregisterPointerEventListener(mSwipeToScreenshot, DEFAULT_DISPLAY);
+            }
+        }
+    }
 
     public void updateSettings() {
         ContentResolver resolver = mContext.getContentResolver();
@@ -2469,6 +2495,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             updateKeyAssignments();
+			
+			// Three Finger Gesture
+            boolean threeFingerGesture = LineageSettings.System.getIntForUser(resolver,
+                    LineageSettings.System.SWIPE_TO_SCREENSHOT, 0, UserHandle.USER_CURRENT) == 1;
+            enableSwipeThreeFingerGesture(threeFingerGesture);
 
             // use screen off timeout setting as the timeout for the lockscreen
             mLockScreenTimeout = Settings.System.getIntForUser(resolver,
